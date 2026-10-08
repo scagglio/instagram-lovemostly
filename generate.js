@@ -491,8 +491,25 @@ async function renderReel(post, pillar, outMp4, coverJpg) {
   const seconds = (total / FPS).toFixed(2);
   const audio = pickAudio();
   const args = ["-y", "-loglevel", "error", "-framerate", String(FPS), "-i", path.join(tmp, "%04d.jpg")];
+  let audioStart = 0;
   if (audio) {
-    args.push("-stream_loop", "-1", "-i", audio);
+    // Start somewhere between 20% and 60% of the way into the track, past the quiet intro,
+    // as long as the rest of the Reel still fits before the track ends
+    const reelLen = total / FPS;
+    let trackLen = 0;
+    try {
+      trackLen = Number(
+        execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", audio]).toString().trim()
+      );
+    } catch {
+      trackLen = 0;
+    }
+    const latest = Math.min(trackLen * 0.6, trackLen - reelLen - 1);
+    const earliest = Math.min(trackLen * 0.2, Math.max(0, latest));
+    if (latest > 0) audioStart = earliest + Math.random() * (latest - earliest);
+
+    if (audioStart > 0) args.push("-ss", audioStart.toFixed(2), "-i", audio);
+    else args.push("-stream_loop", "-1", "-i", audio); // short track: loop it from the top
     args.push("-af", `afade=t=in:d=0.6,afade=t=out:st=${(total / FPS - 1.2).toFixed(2)}:d=1.2,volume=0.8`);
   } else {
     args.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100");
@@ -507,7 +524,10 @@ async function renderReel(post, pillar, outMp4, coverJpg) {
   );
   execFileSync("ffmpeg", args, { stdio: "inherit" });
   fs.rmSync(tmp, { recursive: true, force: true });
-  return { seconds: Number(seconds), audio: audio ? path.basename(audio) : null };
+  return {
+    seconds: Number(seconds),
+    audio: audio ? `${path.basename(audio)} from ${Math.floor(audioStart / 60)}:${String(Math.floor(audioStart % 60)).padStart(2, "0")}` : null,
+  };
 }
 
 function chooseFormat(slot) {
