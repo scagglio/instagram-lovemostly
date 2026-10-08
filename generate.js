@@ -184,14 +184,17 @@ async function reviewPost(post, pillar) {
 
   const user =
     `Pillar: ${account.pillars[pillar].label}\n` +
+    `Pillar guidance: ${account.pillars[pillar].guidance}\n` +
     `Review this draft post:\n${JSON.stringify(post, null, 2)}\n\n` +
+    `Judge the tone against THIS pillar's guidance, not the other pillars. A sweet, spicy or motivational post does not need to be funny. ` +
+    `Reject for real problems (rules, safety, explicitness, a weak or confusing line), not for small style preferences.\n\n` +
     `Approve only if ALL of these are true:\n` +
     `- It follows every rule and avoids every banned topic above.\n` +
     `- The quote is original. It is not a famous quote, lyric, movie line or well-known viral post, and it is not attributed to anyone.\n` +
     `- Humor is affectionate and does not demean either partner or rely on gender stereotypes.\n` +
     `- If it is spicy, it is suggestive only: nothing explicit, crude, or likely to be flagged as sexual content.\n` +
     `- It reads well on its own, and the joke or sentiment lands in one read.\n` +
-    `- The caption adds something and ends with an invitation to engage.\n\n` +
+    `- The caption adds something and ends with an invitation to engage. Asking followers to tag their own partner is fine.\n\n` +
     `Respond with ONLY valid JSON: {"approved": true or false, "reason": "one sentence"}`;
 
   return parseJson(await callClaude(system, user, 300));
@@ -321,6 +324,29 @@ function buildTextSvg(post, pillar) {
 </svg>`;
 }
 
+// Follow slide: the second slide of every post, in the same color as the quote slide
+// (photo posts use the cream "sweet" colors) so the carousel feels like one piece
+function buildFollowSvg(pillar, photo) {
+  const f = account.followSlide;
+  const c = photo ? account.pillars.sweet : account.pillars[pillar];
+  const maxW = W - 2 * M - 40;
+  const block = quoteBlock({ kicker: f.kicker || "", quote: f.text }, c, H / 2 - 110, maxW);
+
+  const btnW = 620;
+  const btnH = 110;
+  const btnX = (W - btnW) / 2;
+  const btnY = Math.round(H / 2 - 110 + block.height / 2 + 90);
+  const heartY = Math.round(H / 2 - 110 - block.height / 2 - 150);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${c.background}"/>
+  <g transform="translate(${W / 2 - 42} ${heartY}) scale(3.5)"><path d="${HEART}" fill="${c.heart}"/></g>
+  ${block.svg}
+  <rect x="${btnX}" y="${btnY}" width="${btnW}" height="${btnH}" rx="${btnH / 2}" fill="${c.text}"/>
+  <text x="${W / 2}" y="${btnY + 70}" font-family="${SANS}" font-weight="700" font-size="40" fill="${c.background}" text-anchor="middle">${esc(f.button || "Follow " + account.handle)}</text>
+</svg>`;
+}
+
 // Photo posts: the photo fills the canvas and the quote sits on a paper panel near the bottom
 function buildPhotoOverlaySvg(post) {
   const colors = { text: "#3B2A20", footer: "#7A6656", heart: "#C8401F" };
@@ -427,8 +453,17 @@ async function main() {
   const dir = DRY_RUN ? "drafts" : "images";
   fs.mkdirSync(path.join(__dirname, dir), { recursive: true });
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
-  const file = `${dir}/post-${stamp}.jpg`;
+  const file = `${dir}/post-${stamp}-s01.jpg`;
   await renderImage(approved, pillar, photo, path.join(__dirname, file));
+  const imageFiles = [file];
+  const altTexts = [approved.altText];
+
+  if (account.followSlide && account.followSlide.enabled) {
+    const followFile = `${dir}/post-${stamp}-s02.jpg`;
+    await sharp(Buffer.from(buildFollowSvg(pillar, photo))).jpeg({ quality: 92 }).toFile(path.join(__dirname, followFile));
+    imageFiles.push(followFile);
+    altTexts.push(account.followSlide.altText || account.followSlide.text);
+  }
 
   const post = {
     pillar,
@@ -437,16 +472,16 @@ async function main() {
     quote: approved.quote,
     headline: approved.quote,
     caption,
-    imageFiles: [file],
-    altTexts: [approved.altText],
+    imageFiles,
+    altTexts,
     photo: photo ? { id: photo.id, query: approved.photoQuery } : null,
     createdAt: new Date().toISOString(),
   };
   fs.writeFileSync(path.join(__dirname, "post.json"), JSON.stringify(post, null, 2));
-  console.log(`Wrote post.json and ${file}`);
+  console.log(`Wrote post.json and ${imageFiles.join(", ")}`);
 }
 
-module.exports = { buildTextSvg, buildPhotoOverlaySvg, renderImage, validate, choosePillar, main };
+module.exports = { buildTextSvg, buildFollowSvg, buildPhotoOverlaySvg, renderImage, validate, choosePillar, main };
 
 if (require.main === module) {
   main().catch((err) => {

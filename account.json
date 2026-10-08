@@ -3,7 +3,7 @@
   "model": "claude-haiku-4-5-20251001",
   "niche": "Single-image quote posts about marriage and long-term relationships: sweet love quotes, funny everyday married-life moments, the occasional tasteful spicy line, and short encouragement for couples.",
   "audience": "Millennials and Gen X who are married, engaged, or in a serious long-term relationship.",
-  "voice": "Warm first, funny second, never bitter. Sounds like a couple that has been together long enough to laugh about it. Specific everyday moments (the thermostat, the last fry, 'what do you want for dinner?') beat vague sentiment. The eye-roll is always affectionate.",
+  "voice": "Warm first, funny second, never bitter. Sounds like a couple that has been together long enough to laugh about it. Specific, concrete details beat vague sentiment in every pillar. The eye-roll is always affectionate. Each pillar has its own tone (see its guidance): sweet is tender, funny is comic, spicy is flirty, motivational is encouraging. Not every post needs to be funny.",
 
   "pillars": {
     "sweet": {
@@ -18,7 +18,7 @@
     },
     "spicy": {
       "label": "Spicy",
-      "guidance": "A flirty, winking line about attraction or date night between committed partners. Suggestive only, never graphic, no body parts, no sex acts, nothing that would get flagged by Instagram. Example of the tone (do not reuse): 'Date night dress code: whatever comes off easiest.'",
+      "guidance": "A flirty, winking line about attraction or date night between committed partners. Suggestive only, never graphic, no body parts, no sex acts, nothing that would get flagged by Instagram. Aim for PG-13 innuendo: flirting, anticipation, a look across the room, date night, still being attracted to each other after years. The humor comes from the wink, not from saying what happens. Example of the tone (do not reuse): 'Date night dress code: whatever comes off easiest.'",
       "background": "#C8401F", "text": "#F4EBDD", "footer": "#F4EBDD", "heart": "#F4EBDD"
     },
     "motivational": {
@@ -42,7 +42,7 @@
     "Spicy lines stay suggestive and playful: no explicit sexual content, no body parts, no sex acts, nothing crude.",
     "No emoji, hashtags or quotation marks inside the quote or kicker.",
     "Do not use em dashes. Use commas, periods or ellipses instead.",
-    "Do not mention or tag other people, brands or accounts, and do not mention a shop, product or link in bio.",
+    "Never @mention or name specific people, brands or accounts, and do not mention a shop, product or link in bio. Inviting followers to tag their own partner (for example 'Tag your person') is allowed and encouraged in captions.",
     "Do not give relationship therapy, medical, legal or financial advice."
   ],
   "bannedTopics": [
@@ -56,7 +56,15 @@
   "brandHashtag": "#lovemostly",
   "hashtagCount": 7,
   "captionMaxWords": 40,
-  "maxAttempts": 3,
+  "maxAttempts": 4,
+
+  "followSlide": {
+    "enabled": true,
+    "kicker": "Wait, don't go",
+    "text": "Follow, or you won't see quotes like these ever again.",
+    "button": "Follow @love.mostly",
+    "altText": "Follow @love.mostly, or you won't see quotes like these ever again."
+  },
 
   "photo": {
     "everyNthPost": 7,
