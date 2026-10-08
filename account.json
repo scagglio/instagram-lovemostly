@@ -1,0 +1,65 @@
+{
+  "handle": "@love.mostly",
+  "model": "claude-haiku-4-5-20251001",
+  "niche": "Single-image quote posts about marriage and long-term relationships: sweet love quotes, funny everyday married-life moments, the occasional tasteful spicy line, and short encouragement for couples.",
+  "audience": "Millennials and Gen X who are married, engaged, or in a serious long-term relationship.",
+  "voice": "Warm first, funny second, never bitter. Sounds like a couple that has been together long enough to laugh about it. Specific everyday moments (the thermostat, the last fry, 'what do you want for dinner?') beat vague sentiment. The eye-roll is always affectionate.",
+
+  "pillars": {
+    "sweet": {
+      "label": "Sweet",
+      "guidance": "A tender, specific love quote. Cozy and real, not greeting-card generic. Example of the tone (do not reuse): 'Home is wherever you steal my fries.'",
+      "background": "#F4EBDD", "text": "#3B2A20", "footer": "#7A6656", "heart": "#C8401F"
+    },
+    "funny": {
+      "label": "Funny",
+      "guidance": "A relatable, comical married-life situation with a clear punchline. Teases both partners equally and lovingly. Example of the tone (do not reuse): 'Marriage is asking what do you want for dinner for the rest of your life.' A short setup can go in the kicker, like 'MARRIAGE IS...'.",
+      "background": "#E3A72F", "text": "#3B2A20", "footer": "#3B2A20", "heart": "#3B2A20"
+    },
+    "spicy": {
+      "label": "Spicy",
+      "guidance": "A flirty, winking line about attraction or date night between committed partners. Suggestive only, never graphic, no body parts, no sex acts, nothing that would get flagged by Instagram. Example of the tone (do not reuse): 'Date night dress code: whatever comes off easiest.'",
+      "background": "#C8401F", "text": "#F4EBDD", "footer": "#F4EBDD", "heart": "#F4EBDD"
+    },
+    "motivational": {
+      "label": "Motivational",
+      "guidance": "Short encouragement for couples about choosing each other, patience, teamwork, or growing together. Grounded and hopeful, not preachy. Example of the tone (do not reuse): 'Choose each other. Especially on the hard days.'",
+      "background": "#E8A9A0", "text": "#3B2A20", "footer": "#3B2A20", "heart": "#3B2A20"
+    }
+  },
+
+  "slots": [
+    { "name": "morning", "fromHourUTC": 10, "toHourUTC": 15, "weights": { "sweet": 60, "motivational": 30, "funny": 10 } },
+    { "name": "midday",  "fromHourUTC": 15, "toHourUTC": 21, "weights": { "funny": 90, "sweet": 10 } },
+    { "name": "evening", "fromHourUTC": 21, "toHourUTC": 10, "weights": { "sweet": 50, "spicy": 30, "funny": 20 } }
+  ],
+
+  "rules": [
+    "The quote is 4 to 22 words. Short and punchy beats long.",
+    "Write original lines. Never quote or paraphrase a famous person, song, movie, book or existing viral post, and never attribute a quote to anyone.",
+    "Never punch down at either partner. No 'nagging wife' or 'useless husband' tropes, and keep gender-neutral wording where it reads naturally.",
+    "No divorce, cheating, breakups, exes, in-laws as villains, alcohol as a coping joke, or anything about fighting dirty.",
+    "Spicy lines stay suggestive and playful: no explicit sexual content, no body parts, no sex acts, nothing crude.",
+    "No emoji, hashtags or quotation marks inside the quote or kicker.",
+    "Do not use em dashes. Use commas, periods or ellipses instead.",
+    "Do not mention or tag other people, brands or accounts, and do not mention a shop, product or link in bio.",
+    "Do not give relationship therapy, medical, legal or financial advice."
+  ],
+  "bannedTopics": [
+    "abuse, control or jealousy presented as romantic",
+    "politics, religion and news events",
+    "children or pregnancy as a punchline",
+    "anything explicit, violent or hateful"
+  ],
+
+  "hashtagPool": ["#marriagehumor", "#marriedlife", "#relationshipgoals", "#husbandandwife", "#lovequotes", "#marriagequotes", "#couplegoals", "#marriagememes", "#relationshipquotes", "#lovestory", "#happilymarried", "#coupleshumor"],
+  "brandHashtag": "#lovemostly",
+  "hashtagCount": 7,
+  "captionMaxWords": 40,
+  "maxAttempts": 3,
+
+  "photo": {
+    "everyNthPost": 7,
+    "note": "Picture posts only happen when the UNSPLASH_ACCESS_KEY secret is set. Otherwise every post is text-only."
+  }
+}

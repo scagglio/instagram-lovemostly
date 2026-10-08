@@ -1,0 +1,14 @@
+{
+  "name": "instagram-lovemostly",
+  "version": "2.0.0",
+  "private": true,
+  "type": "commonjs",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "generate": "node generate.js",
+    "publish": "node publish.js"
+  },
+  "dependencies": {
+    "sharp": "^0.33.5"
+  }
+}
