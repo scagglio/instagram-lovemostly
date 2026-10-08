@@ -58,9 +58,9 @@ async function waitForImage(url) {
   throw new Error(`Image URL never became reachable: ${url}. Is the repository public?`);
 }
 
-async function waitFinished(containerId, label) {
+async function waitFinished(containerId, label, tries = 24) {
   let status = "IN_PROGRESS";
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < tries; i++) {
     const s = await graph("GET", containerId, { fields: "status_code" });
     status = s.status_code;
     if (status === "FINISHED") return;
@@ -84,6 +84,42 @@ async function createCarouselItem(igId, imageUrl, altText) {
   }
 }
 
+// Reels: create a resumable-upload container, send the MP4 bytes straight to Instagram's
+// upload host (so the video never has to be hosted on GitHub), then wait for processing.
+async function createReel(igId, post, coverUrl) {
+  const video = fs.readFileSync(path.join(__dirname, post.videoFile));
+  const params = {
+    media_type: "REELS",
+    upload_type: "resumable",
+    caption: post.caption,
+    share_to_feed: "true",
+  };
+  if (coverUrl) params.cover_url = coverUrl;
+
+  console.log("Creating Reel container...");
+  const container = await graph("POST", `${igId}/media`, params);
+  const uploadUri = container.uri || `https://rupload.facebook.com/ig-api-upload/${VERSION}/${container.id}`;
+
+  console.log(`Uploading video (${(video.length / 1e6).toFixed(1)} MB)...`);
+  const res = await fetch(uploadUri, {
+    method: "POST",
+    headers: {
+      Authorization: `OAuth ${process.env.IG_ACCESS_TOKEN}`,
+      offset: "0",
+      file_size: String(video.length),
+    },
+    body: video,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.success === false || body.error) {
+    throw new Error(`Reel upload failed (${res.status}): ${JSON.stringify(body)}`);
+  }
+
+  console.log("Waiting for Instagram to process the Reel...");
+  await waitFinished(container.id, "Reel container", 72); // up to 6 minutes
+  return container.id;
+}
+
 async function main() {
   const post = JSON.parse(fs.readFileSync(path.join(__dirname, "post.json"), "utf8"));
   const repo = process.env.GITHUB_REPOSITORY;
@@ -98,6 +134,20 @@ async function main() {
 
   console.log(`Waiting for ${urls.length} image(s) to be reachable...`);
   for (const u of urls) await waitForImage(u);
+
+  if (DRY_RUN && post.format === "reel") {
+    const md =
+      `## Reel draft preview (NOT posted)\n\n` +
+      `<img src="${urls[0]}" width="240" alt="reel cover">\n\n` +
+      `The cover is shown above. Download the video from the **love-mostly-reel** artifact at the bottom of this run's Summary page.\n\n` +
+      `**Pillar:** ${post.pillar} (${post.slot})\n\n` +
+      `**Quote:** ${post.kicker ? post.kicker + " / " : ""}${post.quote}\n\n` +
+      `**Audio:** ${post.audio || "silent"}\n\n` +
+      `**Caption:**\n\n\`\`\`text\n${post.caption}\n\`\`\`\n`;
+    console.log(md);
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
+    return;
+  }
 
   if (DRY_RUN) {
     const sheet = urls.map((u, i) => `<img src="${u}" width="320" alt="post preview">`).join(" ");
@@ -118,7 +168,9 @@ async function main() {
   }
 
   let creationId;
-  if (urls.length === 1) {
+  if (post.format === "reel") {
+    creationId = await createReel(igId, post, urls[0]);
+  } else if (urls.length === 1) {
     console.log("Creating single-image container...");
     const container = await graph("POST", `${igId}/media`, {
       image_url: urls[0],
@@ -161,6 +213,7 @@ async function main() {
   const history = fs.existsSync(HISTORY_PATH) ? JSON.parse(fs.readFileSync(HISTORY_PATH, "utf8")) : [];
   history.push({
     date: new Date().toISOString(),
+    format: post.format || "image",
     pillar: post.pillar,
     slot: post.slot,
     kicker: post.kicker,

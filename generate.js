@@ -412,7 +412,7 @@ function reelFrameSvg(post, pillar, t, L, timing) {
   // Follow card
   let follow = "";
   if (timing.followAt) {
-    const a = ease((t - timing.followAt - 0.2) / 0.6);
+    const a = ease((t - timing.followAt - 0.45) / 0.5);
     if (a > 0) {
       const FL = reelLayout({ kicker: f.kicker || "", quote: f.text }, centerY - 40, RW - 2 * M - 40);
       const dy = Math.round((1 - a) * 24);

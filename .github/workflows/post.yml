@@ -19,6 +19,11 @@ on:
         type: choice
         options: [auto, sweet, funny, spicy, motivational]
         default: auto
+      format:
+        description: 'Post format (auto = Reel in the slots listed in account.json)'
+        type: choice
+        options: [auto, image, reel]
+        default: auto
       photo:
         description: 'Make it a photo post (needs UNSPLASH_ACCESS_KEY)'
         type: boolean
@@ -52,6 +57,9 @@ jobs:
           fc-cache -f > /dev/null
           fc-list | grep -Ei "fraunces|dm sans"
 
+      - name: Install ffmpeg (for Reels)
+        run: which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+
       - name: Install dependencies
         run: npm install
 
@@ -62,6 +70,15 @@ jobs:
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PILLAR: ${{ inputs.pillar || 'auto' }}
           FORCE_PHOTO: ${{ inputs.photo == true && 'true' || 'false' }}
+          FORMAT: ${{ inputs.format || 'auto' }}
+
+      - name: Keep the Reel video with this run
+        if: hashFiles('reels/*.mp4') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-mostly-reel
+          path: reels/*.mp4
+          retention-days: 14
 
       - name: Commit image so Instagram can fetch it
         run: |
