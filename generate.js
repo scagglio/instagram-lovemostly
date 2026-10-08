@@ -347,6 +347,177 @@ function buildFollowSvg(pillar, photo) {
 </svg>`;
 }
 
+// ---------- Reels (animated 9:16 video) ----------
+//
+// Timeline (seconds, default 9s total):
+//   0.0  background, heart and handle
+//   0.3  kicker fades in, then each quote line fades in and rises, staggered
+//   hold so the quote can be read
+//   end  crossfade to the follow card (if enabled), which holds to the end
+// Text stays inside Instagram's Reels safe zone (clear of the top bar and the caption/buttons).
+
+const RW = 1080;
+const RH = 1920;
+const FPS = 30;
+
+function reelLayout({ kicker, quote }, centerY, maxWidth) {
+  const n = words(quote);
+  const sizes = n <= 8 ? [110, 100, 92, 84] : n <= 14 ? [92, 84, 76, 68] : [74, 68, 62, 58, 54];
+  const factor = 0.46;
+  const fit = fitText(quote, sizes, maxWidth, 8, factor);
+  const lines = balance(quote, fit.size, maxWidth, factor, fit.lines.length) || fit.lines;
+  const lh = Math.round(fit.size * (fit.size >= 76 ? 1.08 : 1.14));
+  const kickerH = kicker ? 36 + 40 : 0;
+  const blockH = kickerH + (lines.length - 1) * lh + fit.size * 0.75;
+  const top = Math.round(centerY - blockH / 2);
+  return { lines, size: fit.size, lh, kickerY: top + 26, first: top + kickerH + Math.round(fit.size * 0.75), blockH, top };
+}
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => 1 - Math.pow(1 - clamp01(x), 3); // ease-out cubic
+
+function reelFrameSvg(post, pillar, t, L, timing) {
+  const c = account.pillars[pillar];
+  const f = account.followSlide || {};
+  const cx = RW / 2;
+  const centerY = 860;
+
+  // Quote card opacity (fades out when the follow card comes in)
+  const out = timing.followAt ? 1 - clamp01((t - timing.followAt) / 0.5) : 1;
+
+  let quote = "";
+  if (post.kicker) {
+    const a = ease((t - 0.3) / 0.5) * out;
+    quote += `<text x="${cx}" y="${L.kickerY}" opacity="${a.toFixed(3)}" font-family="${SANS}" font-weight="700" font-size="32" letter-spacing="5" fill="${c.text}" text-anchor="middle">${esc(post.kicker.toUpperCase())}</text>`;
+  }
+  L.lines.forEach((line, i) => {
+    const start = timing.linesAt + i * timing.stagger;
+    const p = ease((t - start) / 0.55);
+    const dy = Math.round((1 - p) * 28);
+    quote += `<text x="${cx}" y="${L.first + i * L.lh + dy}" opacity="${(p * out).toFixed(3)}" font-family="${DISPLAY}" font-weight="${L.size >= 62 ? 600 : 500}" font-size="${L.size}" fill="${c.text}" text-anchor="middle">${esc(line)}</text>`;
+  });
+
+  // Heart above the quote: pops in once the last line lands
+  const popT = timing.linesAt + (L.lines.length - 1) * timing.stagger + 0.45;
+  const pop = clamp01((t - popT) / 0.35);
+  const scale = pop === 0 ? 0 : pop < 0.7 ? (pop / 0.7) * 1.2 : 1.2 - ((pop - 0.7) / 0.3) * 0.2;
+  const heartSize = 72 * scale;
+  const hk = heartSize / 24;
+  const heartY = L.top - 90;
+  const heart =
+    scale > 0
+      ? `<g opacity="${out.toFixed(3)}" transform="translate(${cx - 12 * hk} ${heartY - 13 * hk}) scale(${hk})"><path d="${HEART}" fill="${c.heart}"/></g>`
+      : "";
+
+  // Follow card
+  let follow = "";
+  if (timing.followAt) {
+    const a = ease((t - timing.followAt - 0.2) / 0.6);
+    if (a > 0) {
+      const FL = reelLayout({ kicker: f.kicker || "", quote: f.text }, centerY - 40, RW - 2 * M - 40);
+      const dy = Math.round((1 - a) * 24);
+      if (f.kicker) {
+        follow += `<text x="${cx}" y="${FL.kickerY + dy}" font-family="${SANS}" font-weight="700" font-size="32" letter-spacing="5" fill="${c.text}" text-anchor="middle">${esc(f.kicker.toUpperCase())}</text>`;
+      }
+      follow += FL.lines
+        .map(
+          (l, i) =>
+            `<text x="${cx}" y="${FL.first + i * FL.lh + dy}" font-family="${DISPLAY}" font-weight="600" font-size="${FL.size}" fill="${c.text}" text-anchor="middle">${esc(l)}</text>`
+        )
+        .join("");
+      const btnW = 640;
+      const btnH = 116;
+      const btnY = FL.top + FL.blockH + 90 + dy;
+      follow +=
+        `<rect x="${(RW - btnW) / 2}" y="${btnY}" width="${btnW}" height="${btnH}" rx="${btnH / 2}" fill="${c.text}"/>` +
+        `<text x="${cx}" y="${btnY + 74}" font-family="${SANS}" font-weight="700" font-size="42" fill="${c.background}" text-anchor="middle">${esc(f.button || "Follow " + account.handle)}</text>`;
+      follow = `<g opacity="${a.toFixed(3)}">${follow}</g>`;
+    }
+  }
+
+  // Handle stays put the whole time, above the area the Reels caption covers
+  const handle = `<text x="${cx}" y="1420" font-family="${SANS}" font-weight="500" font-size="30" fill="${c.footer}" text-anchor="middle">${esc(account.handle)}</text>`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${RW}" height="${RH}" viewBox="0 0 ${RW} ${RH}">
+  <rect width="${RW}" height="${RH}" fill="${c.background}"/>
+  ${heart}
+  ${quote}
+  ${follow}
+  ${handle}
+</svg>`;
+}
+
+function pickAudio() {
+  const dir = path.join(__dirname, "audio");
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir).filter((f) => /\.(mp3|m4a|aac|wav)$/i.test(f));
+  return files.length ? path.join(dir, files[Math.floor(Math.random() * files.length)]) : null;
+}
+
+// Renders the Reel to outMp4 and a cover image (the fully revealed quote) to coverJpg
+async function renderReel(post, pillar, outMp4, coverJpg) {
+  const { execFileSync } = require("child_process");
+  const os = require("os");
+  const r = account.reels || {};
+  const duration = Math.min(30, Math.max(6, Number(r.durationSeconds) || 9));
+  const hasFollow = account.followSlide && account.followSlide.enabled;
+
+  const L = reelLayout(post, 860, RW - 2 * M - 40);
+  const timing = {
+    linesAt: post.kicker ? 0.8 : 0.4,
+    stagger: 0.45,
+    followAt: hasFollow ? duration - 2.8 : null,
+  };
+  const revealed = timing.linesAt + (L.lines.length - 1) * timing.stagger + 1.0;
+  if (hasFollow && timing.followAt < revealed + 2.5) timing.followAt = revealed + 2.5; // always leave time to read
+
+  const total = Math.ceil(Math.max(duration, (timing.followAt || 0) + 2.8) * FPS);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "reel-"));
+  let lastSvg = "";
+  let lastBuf = null;
+  for (let i = 0; i < total; i++) {
+    const svg = reelFrameSvg(post, pillar, i / FPS, L, timing);
+    if (svg !== lastSvg) {
+      lastBuf = await sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer();
+      lastSvg = svg;
+    }
+    fs.writeFileSync(path.join(tmp, `${String(i).padStart(4, "0")}.jpg`), lastBuf);
+  }
+
+  // Cover: the moment the full quote and heart are showing
+  const coverT = Math.min(revealed + 0.5, (timing.followAt || duration) - 0.1);
+  await sharp(Buffer.from(reelFrameSvg(post, pillar, coverT, L, timing))).jpeg({ quality: 92 }).toFile(coverJpg);
+
+  const seconds = (total / FPS).toFixed(2);
+  const audio = pickAudio();
+  const args = ["-y", "-loglevel", "error", "-framerate", String(FPS), "-i", path.join(tmp, "%04d.jpg")];
+  if (audio) {
+    args.push("-stream_loop", "-1", "-i", audio);
+    args.push("-af", `afade=t=in:d=0.6,afade=t=out:st=${(total / FPS - 1.2).toFixed(2)}:d=1.2,volume=0.8`);
+  } else {
+    args.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100");
+  }
+  args.push(
+    "-t", seconds,
+    "-map", "0:v", "-map", "1:a",
+    "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p", "-r", String(FPS), "-crf", "20",
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+    "-movflags", "+faststart",
+    outMp4
+  );
+  execFileSync("ffmpeg", args, { stdio: "inherit" });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return { seconds: Number(seconds), audio: audio ? path.basename(audio) : null };
+}
+
+function chooseFormat(slot) {
+  const forced = (process.env.FORMAT || "auto").trim().toLowerCase();
+  if (forced === "reel" || forced === "image") return forced;
+  const r = account.reels || {};
+  if (!r.enabled) return "image";
+  return (r.slots || []).includes(slot) ? "reel" : "image";
+}
+
 // Photo posts: the photo fills the canvas and the quote sits on a paper panel near the bottom
 function buildPhotoOverlaySvg(post) {
   const colors = { text: "#3B2A20", footer: "#7A6656", heart: "#C8401F" };
@@ -393,8 +564,9 @@ async function main() {
 
   const history = loadHistory();
   const { pillar, slot } = choosePillar(history);
-  let photoMode = wantsPhoto(history);
-  console.log(`Slot: ${slot} | Pillar: ${pillar} | Photo: ${photoMode}`);
+  const format = chooseFormat(slot === "manual" ? slotFor(new Date()).name : slot);
+  let photoMode = format === "image" && wantsPhoto(history);
+  console.log(`Slot: ${slot} | Pillar: ${pillar} | Format: ${format} | Photo: ${photoMode}`);
 
   let approved = null;
   let feedback = "";
@@ -453,6 +625,37 @@ async function main() {
   const dir = DRY_RUN ? "drafts" : "images";
   fs.mkdirSync(path.join(__dirname, dir), { recursive: true });
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+
+  if (format === "reel") {
+    // The video is uploaded straight to Instagram and is not committed (keeps the repo small).
+    // The cover image is committed so Instagram can fetch it by URL.
+    fs.mkdirSync(path.join(__dirname, "reels"), { recursive: true });
+    const videoFile = `reels/reel-${stamp}.mp4`;
+    const coverFile = `${dir}/reel-${stamp}-cover.jpg`;
+    console.log("Rendering Reel...");
+    const info = await renderReel(approved, pillar, path.join(__dirname, videoFile), path.join(__dirname, coverFile));
+    console.log(`Reel: ${info.seconds}s, audio: ${info.audio || "silent"}`);
+
+    const post = {
+      format: "reel",
+      pillar,
+      slot,
+      kicker: approved.kicker,
+      quote: approved.quote,
+      headline: approved.quote,
+      caption,
+      videoFile,
+      coverFile,
+      imageFiles: [coverFile],
+      altTexts: [approved.altText],
+      audio: info.audio,
+      createdAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(path.join(__dirname, "post.json"), JSON.stringify(post, null, 2));
+    console.log(`Wrote post.json, ${videoFile} and ${coverFile}`);
+    return;
+  }
+
   const file = `${dir}/post-${stamp}-s01.jpg`;
   await renderImage(approved, pillar, photo, path.join(__dirname, file));
   const imageFiles = [file];
@@ -466,6 +669,7 @@ async function main() {
   }
 
   const post = {
+    format: "image",
     pillar,
     slot,
     kicker: approved.kicker,
@@ -481,7 +685,7 @@ async function main() {
   console.log(`Wrote post.json and ${imageFiles.join(", ")}`);
 }
 
-module.exports = { buildTextSvg, buildFollowSvg, buildPhotoOverlaySvg, renderImage, validate, choosePillar, main };
+module.exports = { buildTextSvg, buildFollowSvg, renderReel, reelFrameSvg, chooseFormat, buildPhotoOverlaySvg, renderImage, validate, choosePillar, main };
 
 if (require.main === module) {
   main().catch((err) => {

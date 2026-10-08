@@ -58,6 +58,13 @@
   "captionMaxWords": 40,
   "maxAttempts": 4,
 
+  "reels": {
+    "enabled": true,
+    "slots": ["midday"],
+    "durationSeconds": 9,
+    "note": "Posts in the listed slots (morning, midday, evening) are published as Reels. Drop royalty-free .mp3 files in audio/ for background music; without them Reels are silent."
+  },
+
   "followSlide": {
     "enabled": true,
     "kicker": "Wait, don't go",
