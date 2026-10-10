@@ -87,7 +87,7 @@ function wantsPhoto(history) {
 
 class ParseError extends Error {}
 
-async function callClaude(system, user, maxTokens = 800) {
+async function callClaude(system, user, maxTokens = 800, model = account.model) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -96,7 +96,7 @@ async function callClaude(system, user, maxTokens = 800) {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: account.model,
+      model,
       max_tokens: maxTokens,
       system,
       messages: [{ role: "user", content: user }],
@@ -132,16 +132,18 @@ function briefText() {
   ].join("\n\n");
 }
 
-async function draftPost(pillar, photo, history, feedback) {
+async function draftCandidates(pillar, photo, history, feedback) {
   const recent = history.slice(-60).map((h) => `- ${h.quote || h.headline}`).join("\n") || "(none yet)";
   const p = account.pillars[pillar];
+  const ctas = account.captionCtas || ["End with a question that invites comments."];
+  const cta = ctas[Math.floor(Math.random() * ctas.length)];
 
   const system =
     `You write an Instagram quote account with no human editor, so every post must be safe to publish exactly as written.\n\n` +
     briefText();
 
   const user =
-    `Write the next single-image post.\n` +
+    `Write ${account.candidates || 5} different candidate posts. Each must use a different idea and, for funny posts, a different format.\n` +
     `Pillar: ${p.label}\n` +
     `Pillar guidance: ${p.guidance}\n` +
     `Today's date: ${new Date().toISOString().slice(0, 10)}\n\n` +
@@ -150,15 +152,45 @@ async function draftPost(pillar, photo, history, feedback) {
     `\nFields:\n` +
     `- kicker: optional short setup shown above the quote, max 4 words, or an empty string. Use it rarely, only when the quote reads as its punchline.\n` +
     `- quote: the line on the image, 4 to 22 words, plain text.\n` +
-    `- caption: one or two short lines that add to the quote (do not just repeat it), ending with a question or prompt that invites comments or tagging a partner. Max ${account.captionMaxWords} words. One or two emoji are fine. No hashtags.\n` +
+    `- caption: one or two short lines that add to the quote (do not just repeat it). ${cta} Max ${account.captionMaxWords} words. One or two emoji are fine. No hashtags.\n` +
     `- altText: a plain description of the image for screen readers, including the quote text.\n` +
     (photo
       ? `- photoQuery: 2 to 4 words to search a stock photo site for a warm, candid, non-sexual background photo that fits the quote (for example "couple coffee kitchen", "holding hands sunset"). No celebrities or brands.\n`
       : "") +
+    `\nBefore answering, check each quote: would a stranger understand it instantly, and does the logic of the joke or sentiment actually hold up? Replace any that don't.\n` +
     `\nRespond with ONLY valid JSON in this exact shape:\n` +
-    `{"kicker":"","quote":"","caption":"","altText":""${photo ? ',"photoQuery":""' : ""}}`;
+    `{"candidates":[{"kicker":"","quote":"","caption":"","altText":""${photo ? ',"photoQuery":""' : ""}}]}`;
 
-  return parseJson(await callClaude(system, user));
+  const out = parseJson(await callClaude(system, user, 2000, account.draftModel || account.model));
+  if (!Array.isArray(out.candidates)) throw new ParseError("candidates array missing");
+  return out.candidates;
+}
+
+// Scores the candidates and returns the best one, or null if none is good enough
+async function judgeCandidates(candidates, pillar) {
+  const p = account.pillars[pillar];
+  const system =
+    `You are the editor of a marriage and relationships quote account on Instagram. You pick only posts that people will ` +
+    `understand instantly and want to send to their partner.\n\n` +
+    briefText();
+  const user =
+    `Pillar: ${p.label}\nPillar guidance: ${p.guidance}\n\n` +
+    `Candidates:\n${candidates.map((c, i) => `${i}. ${c.kicker ? "[" + c.kicker + "] " : ""}${c.quote}\n   caption: ${c.caption}`).join("\n")}\n\n` +
+    `Score each from 1 to 10 on:\n` +
+    `- clarity: makes complete sense on a single read; the logic of the joke or sentiment holds up; kicker and quote read as one natural sentence\n` +
+    `- relatable: a specific, concrete moment the audience recognizes from their own relationship (abstract or greeting-card lines score low)\n` +
+    `- shareable: someone would send it to their partner or tag them\n` +
+    `- tone: fits this pillar's guidance\n\n` +
+    `Respond with ONLY valid JSON: {"scores":[{"i":0,"clarity":0,"relatable":0,"shareable":0,"tone":0}],"best":<index of the best overall>,"reason":"one sentence"}`;
+  const out = parseJson(await callClaude(system, user, 700, account.draftModel || account.model));
+  const min = Number(account.minScore) || 7;
+  const scored = (out.scores || [])
+    .filter((s) => candidates[s.i])
+    .map((s) => ({ ...s, total: s.clarity + s.relatable + s.shareable + s.tone }))
+    .filter((s) => s.clarity >= min && s.relatable >= min - 1 && s.tone >= min - 1)
+    .sort((a, b) => b.total - a.total);
+  const pick = scored.find((s) => s.i === out.best) || scored[0];
+  return pick ? { post: candidates[pick.i], score: pick, reason: out.reason } : null;
 }
 
 const words = (s) => String(s).trim().split(/\s+/).filter(Boolean).length;
@@ -166,7 +198,13 @@ const isStr = (v) => typeof v === "string" && v.trim().length > 0;
 
 function tidy(p) {
   const strip = (s) => String(s || "").trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
-  return { ...p, kicker: strip(p.kicker), quote: strip(p.quote), caption: String(p.caption || "").trim() };
+  const kicker = strip(p.kicker);
+  let quote = strip(p.quote);
+  // "MARRIAGE IS..." + "asking..." reads as one sentence, so continue it in lowercase
+  if (/(\.\.\.|…)$/.test(kicker) && /^[A-Z][a-z]/.test(quote) && !/^I\b/.test(quote)) {
+    quote = quote[0].toLowerCase() + quote.slice(1);
+  }
+  return { ...p, kicker, quote, caption: String(p.caption || "").trim() };
 }
 
 function validate(p, photo) {
@@ -605,18 +643,31 @@ async function main() {
     console.log(`Draft attempt ${attempt}/${account.maxAttempts}...`);
     let candidate;
     try {
-      candidate = tidy(await draftPost(pillar, photoMode, history, feedback));
+      const drafts = (await draftCandidates(pillar, photoMode, history, feedback)).map(tidy);
+      const valid = drafts.filter((d) => {
+        const problem = validate(d, photoMode);
+        if (problem) console.log(`  Dropped "${d.quote}": ${problem}`);
+        return !problem;
+      });
+      if (!valid.length) {
+        feedback = "None of the candidates passed the basic checks (length, no emoji, no dashes, caption present).";
+        console.log("  No valid candidates.");
+        continue;
+      }
+      valid.forEach((d, i) => console.log(`  Candidate ${i}: ${d.kicker ? "[" + d.kicker + "] " : ""}${d.quote}`));
+      const judged = await judgeCandidates(valid, pillar);
+      if (!judged) {
+        feedback = "None of the candidates was clear, specific and relatable enough. Use concrete everyday moments and make sure each line makes sense on one read.";
+        console.log("  Editor rejected all candidates.");
+        continue;
+      }
+      const sc = judged.score;
+      console.log(`  Editor picked: "${judged.post.quote}" (clarity ${sc.clarity}, relatable ${sc.relatable}, shareable ${sc.shareable}, tone ${sc.tone})`);
+      candidate = judged.post;
     } catch (err) {
       if (!(err instanceof ParseError)) throw err;
       feedback = `Your response could not be parsed (${err.message}). Respond with only the JSON object.`;
-      console.log(`  Unparseable draft: ${err.message}`);
-      continue;
-    }
-
-    const problem = validate(candidate, photoMode);
-    if (problem) {
-      feedback = problem;
-      console.log(`  Failed local checks: ${problem}`);
+      console.log(`  Unparseable response: ${err.message}`);
       continue;
     }
 

@@ -1,39 +1,77 @@
 {
   "handle": "@love.mostly",
   "model": "claude-haiku-4-5-20251001",
+  "draftModel": "claude-sonnet-5-5",
+  "candidates": 5,
+  "minScore": 7,
   "niche": "Single-image quote posts about marriage and long-term relationships: sweet love quotes, funny everyday married-life moments, the occasional tasteful spicy line, and short encouragement for couples.",
   "audience": "Millennials and Gen X who are married, engaged, or in a serious long-term relationship.",
   "voice": "Warm first, funny second, never bitter. Sounds like a couple that has been together long enough to laugh about it. Specific, concrete details beat vague sentiment in every pillar. The eye-roll is always affectionate. Each pillar has its own tone (see its guidance): sweet is tender, funny is comic, spicy is flirty, motivational is encouraging. Not every post needs to be funny.",
-
   "pillars": {
     "sweet": {
       "label": "Sweet",
-      "guidance": "A tender, specific love quote. Cozy and real, not greeting-card generic. Example of the tone (do not reuse): 'Home is wherever you steal my fries.'",
-      "background": "#F4EBDD", "text": "#3B2A20", "footer": "#7A6656", "heart": "#C8401F"
+      "guidance": "A tender love line built on ONE concrete, specific, everyday detail (an object, a habit, a place, a moment), so readers think 'that's us'. Never abstract: avoid words like soul, space, parts of me, yourself, coming home, journey, safe. Good (do not reuse): 'Home is wherever you steal my fries.' / 'You still warm up the car for me. That's the whole love story.' Bad: 'I love the person you are when you're completely yourself around me.' (abstract, no picture).",
+      "background": "#F4EBDD",
+      "text": "#3B2A20",
+      "footer": "#7A6656",
+      "heart": "#C8401F"
     },
     "funny": {
       "label": "Funny",
-      "guidance": "A relatable, comical married-life situation with a clear punchline. Teases both partners equally and lovingly. Example of the tone (do not reuse): 'Marriage is asking what do you want for dinner for the rest of your life.' A short setup can go in the kicker, like 'MARRIAGE IS...'.",
-      "background": "#E3A72F", "text": "#3B2A20", "footer": "#3B2A20", "heart": "#3B2A20"
+      "guidance": "A relatable married-life situation with a clear, logical punchline that lands in one read. Teases both partners equally and lovingly. Use one of these proven formats: (1) kicker 'Marriage is...' + a specific situation in lowercase that completes the sentence; (2) 'Me: ... / Them: ...' two-line exchange; (3) 'Love is X. Marriage is Y.' contrast; (4) a confession like 'I don't need a therapist, I need you to put the cap back on the toothpaste.' The joke must make literal sense: check that the cause and effect add up. Good (do not reuse): kicker 'Marriage is...' + 'asking what do you want for dinner for the rest of your life.' Bad: 'Pretending you didn't hear them the first time so they'll stop asking.' (logic doesn't work: pretending not to hear makes them ask again).",
+      "background": "#E3A72F",
+      "text": "#3B2A20",
+      "footer": "#3B2A20",
+      "heart": "#3B2A20"
     },
     "spicy": {
       "label": "Spicy",
       "guidance": "A flirty, winking line about attraction or date night between committed partners. Suggestive only, never graphic, no body parts, no sex acts, nothing that would get flagged by Instagram. Aim for PG-13 innuendo: flirting, anticipation, a look across the room, date night, still being attracted to each other after years. The humor comes from the wink, not from saying what happens. Example of the tone (do not reuse): 'Date night dress code: whatever comes off easiest.'",
-      "background": "#C8401F", "text": "#F4EBDD", "footer": "#F4EBDD", "heart": "#F4EBDD"
+      "background": "#C8401F",
+      "text": "#F4EBDD",
+      "footer": "#F4EBDD",
+      "heart": "#F4EBDD"
     },
     "motivational": {
       "label": "Motivational",
-      "guidance": "Short encouragement for couples about choosing each other, patience, teamwork, or growing together. Grounded and hopeful, not preachy. Example of the tone (do not reuse): 'Choose each other. Especially on the hard days.'",
-      "background": "#E8A9A0", "text": "#3B2A20", "footer": "#3B2A20", "heart": "#3B2A20"
+      "guidance": "Short, grounded encouragement for couples about choosing each other, patience or teamwork, with a concrete image where possible. Hopeful, never preachy, no therapy-speak. Good (do not reuse): 'Choose each other. Especially on the hard days.' / 'Some days love is fireworks. Most days it's doing the dishes so they don't have to.'",
+      "background": "#E8A9A0",
+      "text": "#3B2A20",
+      "footer": "#3B2A20",
+      "heart": "#3B2A20"
     }
   },
-
   "slots": [
-    { "name": "morning", "fromHourUTC": 10, "toHourUTC": 15, "weights": { "sweet": 60, "motivational": 30, "funny": 10 } },
-    { "name": "midday",  "fromHourUTC": 15, "toHourUTC": 21, "weights": { "funny": 90, "sweet": 10 } },
-    { "name": "evening", "fromHourUTC": 21, "toHourUTC": 10, "weights": { "sweet": 50, "spicy": 30, "funny": 20 } }
+    {
+      "name": "morning",
+      "fromHourUTC": 10,
+      "toHourUTC": 15,
+      "weights": {
+        "sweet": 45,
+        "motivational": 30,
+        "funny": 25
+      }
+    },
+    {
+      "name": "midday",
+      "fromHourUTC": 15,
+      "toHourUTC": 21,
+      "weights": {
+        "funny": 90,
+        "sweet": 10
+      }
+    },
+    {
+      "name": "evening",
+      "fromHourUTC": 21,
+      "toHourUTC": 10,
+      "weights": {
+        "spicy": 35,
+        "funny": 35,
+        "sweet": 30
+      }
+    }
   ],
-
   "rules": [
     "The quote is 4 to 22 words. Short and punchy beats long.",
     "Write original lines. Never quote or paraphrase a famous person, song, movie, book or existing viral post, and never attribute a quote to anyone.",
@@ -42,7 +80,7 @@
     "Spicy lines stay suggestive and playful: no explicit sexual content, no body parts, no sex acts, nothing crude.",
     "No emoji, hashtags or quotation marks inside the quote or kicker.",
     "Do not use em dashes. Use commas, periods or ellipses instead.",
-    "Never @mention or name specific people, brands or accounts, and do not mention a shop, product or link in bio. Inviting followers to tag their own partner (for example 'Tag your person') is allowed and encouraged in captions.",
+    "Never @mention or name specific people, brands or accounts, and do not mention a shop, product or link in bio. Asking followers to tag or send the post to their own partner is allowed.",
     "Do not give relationship therapy, medical, legal or financial advice."
   ],
   "bannedTopics": [
@@ -51,20 +89,40 @@
     "children or pregnancy as a punchline",
     "anything explicit, violent or hateful"
   ],
-
-  "hashtagPool": ["#marriagehumor", "#marriedlife", "#relationshipgoals", "#husbandandwife", "#lovequotes", "#marriagequotes", "#couplegoals", "#marriagememes", "#relationshipquotes", "#lovestory", "#happilymarried", "#coupleshumor"],
+  "captionCtas": [
+    "End by asking them to send this to their partner, phrased naturally (for example 'Send this to the one who...').",
+    "End with an easy either/or question people can answer in one word (for example 'Team warm car or team cold car?').",
+    "End by asking people to comment one emoji if this is them.",
+    "End with a 'Be honest:' question about their own relationship.",
+    "End by asking them to tag the partner who does this.",
+    "End by asking them to save it for a day they need the reminder."
+  ],
+  "hashtagPool": [
+    "#marriagehumor",
+    "#marriedlife",
+    "#relationshipgoals",
+    "#husbandandwife",
+    "#lovequotes",
+    "#marriagequotes",
+    "#couplegoals",
+    "#marriagememes",
+    "#relationshipquotes",
+    "#lovestory",
+    "#happilymarried",
+    "#coupleshumor"
+  ],
   "brandHashtag": "#lovemostly",
   "hashtagCount": 7,
   "captionMaxWords": 40,
   "maxAttempts": 4,
-
   "reels": {
     "enabled": true,
-    "slots": ["midday"],
+    "slots": [
+      "midday"
+    ],
     "durationSeconds": 9,
     "note": "Posts in the listed slots (morning, midday, evening) are published as Reels. Drop royalty-free .mp3 files in audio/ for background music; without them Reels are silent."
   },
-
   "followSlide": {
     "enabled": true,
     "kicker": "Wait, don't go",
@@ -72,7 +130,6 @@
     "button": "Follow @love.mostly",
     "altText": "Follow @love.mostly, or you won't see quotes like these ever again."
   },
-
   "photo": {
     "everyNthPost": 4,
     "note": "Every Nth image post (Reels not counted) is a photo post. Picture posts only happen when the UNSPLASH_ACCESS_KEY secret is set."
