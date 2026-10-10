@@ -70,7 +70,17 @@ function wantsPhoto(history) {
   const n = Number(account.photo && account.photo.everyNthPost) || 0;
   if (n < 2) return false;
   if (DRY_RUN) return Math.random() < 1 / n;
-  return history.length % n === n - 1;
+  // Count image posts (Reels don't count) since the last photo post. Once n - 1 text-only
+  // image posts have gone out, the next image post is a photo. This way a Reel landing on
+  // the "photo turn" can't make the account skip photos for another full cycle.
+  let sinceLastPhoto = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const h = history[i];
+    if ((h.format || "image") !== "image") continue;
+    if (h.photo) break;
+    sinceLastPhoto++;
+  }
+  return sinceLastPhoto >= n - 1;
 }
 
 // ---------- Claude ----------

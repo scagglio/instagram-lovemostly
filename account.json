@@ -74,7 +74,7 @@
   },
 
   "photo": {
-    "everyNthPost": 7,
-    "note": "Picture posts only happen when the UNSPLASH_ACCESS_KEY secret is set. Otherwise every post is text-only."
+    "everyNthPost": 4,
+    "note": "Every Nth image post (Reels not counted) is a photo post. Picture posts only happen when the UNSPLASH_ACCESS_KEY secret is set."
   }
 }
