@@ -107,6 +107,93 @@ async function callClaude(system, user, maxTokens = 800, model = account.model) 
   return data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
 }
 
+// Asks Claude to answer by "calling" a tool whose input is the JSON we want. The API then
+// returns a parsed object, so stray quote marks or extra prose can't break the JSON.
+async function callClaudeJson(system, user, schema, maxTokens = 1200, model = account.model) {
+  const tool = { name: "submit", description: "Submit your answer.", input_schema: schema };
+  const send = (toolChoice) =>
+    fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        system,
+        tools: [tool],
+        tool_choice: toolChoice,
+        messages: [{ role: "user", content: user + "\n\nGive your answer by calling the submit tool." }],
+      }),
+    });
+
+  let res = await send({ type: "tool", name: "submit" });
+  if (res.status === 400) {
+    // Some model settings don't allow a forced tool. Let the model choose instead.
+    const text = await res.text();
+    console.log(`  Forced tool call not accepted (${text.slice(0, 160)}), retrying with tool_choice auto`);
+    res = await send({ type: "auto" });
+  }
+  if (!res.ok) throw new Error(`Claude API error ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+
+  const call = (data.content || []).find((b) => b.type === "tool_use" && b.name === "submit");
+  if (call && call.input && typeof call.input === "object") return call.input;
+
+  // Fallback: the model answered in text instead of calling the tool
+  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+  try {
+    return parseJson(text);
+  } catch (err) {
+    throw new ParseError(`${err.message} [model ${model}, stop_reason ${data.stop_reason}, start of reply: ${JSON.stringify(text.slice(0, 200))}]`);
+  }
+}
+
+const STR = { type: "string" };
+const DRAFT_SCHEMA = (photo) => ({
+  type: "object",
+  properties: {
+    candidates: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { kicker: STR, quote: STR, caption: STR, altText: STR, ...(photo ? { photoQuery: STR } : {}) },
+        required: ["kicker", "quote", "caption", "altText", ...(photo ? ["photoQuery"] : [])],
+      },
+    },
+  },
+  required: ["candidates"],
+});
+const JUDGE_SCHEMA = {
+  type: "object",
+  properties: {
+    scores: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          i: { type: "integer" },
+          clarity: { type: "integer" },
+          relatable: { type: "integer" },
+          shareable: { type: "integer" },
+          tone: { type: "integer" },
+        },
+        required: ["i", "clarity", "relatable", "shareable", "tone"],
+      },
+    },
+    best: { type: "integer" },
+    reason: STR,
+  },
+  required: ["scores", "best", "reason"],
+};
+const REVIEW_SCHEMA = {
+  type: "object",
+  properties: { approved: { type: "boolean" }, reason: STR },
+  required: ["approved", "reason"],
+};
+
 function parseJson(text) {
   const cleaned = text.replace(/```json|```/g, "").trim();
   const start = cleaned.indexOf("{");
@@ -132,7 +219,7 @@ function briefText() {
   ].join("\n\n");
 }
 
-async function draftCandidates(pillar, photo, history, feedback) {
+async function draftCandidates(pillar, photo, history, feedback, model = account.draftModel || account.model) {
   const recent = history.slice(-60).map((h) => `- ${h.quote || h.headline}`).join("\n") || "(none yet)";
   const p = account.pillars[pillar];
   const ctas = account.captionCtas || ["End with a question that invites comments."];
@@ -158,16 +245,15 @@ async function draftCandidates(pillar, photo, history, feedback) {
       ? `- photoQuery: 2 to 4 words to search a stock photo site for a warm, candid, non-sexual background photo that fits the quote (for example "couple coffee kitchen", "holding hands sunset"). No celebrities or brands.\n`
       : "") +
     `\nBefore answering, check each quote: would a stranger understand it instantly, and does the logic of the joke or sentiment actually hold up? Replace any that don't.\n` +
-    `\nRespond with ONLY valid JSON in this exact shape:\n` +
-    `{"candidates":[{"kicker":"","quote":"","caption":"","altText":""${photo ? ',"photoQuery":""' : ""}}]}`;
+    `\nSubmit all candidates in the candidates list.`;
 
-  const out = parseJson(await callClaude(system, user, 2000, account.draftModel || account.model));
+  const out = await callClaudeJson(system, user, DRAFT_SCHEMA(photo), 4000, model);
   if (!Array.isArray(out.candidates)) throw new ParseError("candidates array missing");
   return out.candidates;
 }
 
 // Scores the candidates and returns the best one, or null if none is good enough
-async function judgeCandidates(candidates, pillar) {
+async function judgeCandidates(candidates, pillar, model = account.draftModel || account.model) {
   const p = account.pillars[pillar];
   const system =
     `You are the editor of a marriage and relationships quote account on Instagram. You pick only posts that people will ` +
@@ -181,8 +267,8 @@ async function judgeCandidates(candidates, pillar) {
     `- relatable: a specific, concrete moment the audience recognizes from their own relationship (abstract or greeting-card lines score low)\n` +
     `- shareable: someone would send it to their partner or tag them\n` +
     `- tone: fits this pillar's guidance\n\n` +
-    `Respond with ONLY valid JSON: {"scores":[{"i":0,"clarity":0,"relatable":0,"shareable":0,"tone":0}],"best":<index of the best overall>,"reason":"one sentence"}`;
-  const out = parseJson(await callClaude(system, user, 700, account.draftModel || account.model));
+    `Submit a score for every candidate (i is its number), the number of the best one overall, and a one-sentence reason.`;
+  const out = await callClaudeJson(system, user, JUDGE_SCHEMA, 1500, model);
   const min = Number(account.minScore) || 7;
   const scored = (out.scores || [])
     .filter((s) => candidates[s.i])
@@ -243,9 +329,9 @@ async function reviewPost(post, pillar) {
     `- If it is spicy, it is suggestive only: nothing explicit, crude, or likely to be flagged as sexual content.\n` +
     `- It reads well on its own, and the joke or sentiment lands in one read.\n` +
     `- The caption adds something and ends with an invitation to engage. Asking followers to tag their own partner is fine.\n\n` +
-    `Respond with ONLY valid JSON: {"approved": true or false, "reason": "one sentence"}`;
+    `Submit approved (true or false) and a one-sentence reason.`;
 
-  return parseJson(await callClaude(system, user, 300));
+  return await callClaudeJson(system, user, REVIEW_SCHEMA, 400);
 }
 
 // ---------- Photos (optional) ----------
@@ -643,7 +729,10 @@ async function main() {
     console.log(`Draft attempt ${attempt}/${account.maxAttempts}...`);
     let candidate;
     try {
-      const drafts = (await draftCandidates(pillar, photoMode, history, feedback)).map(tidy);
+      // If the main writing model keeps failing, the last attempt falls back to the review model
+      const model = attempt === account.maxAttempts ? account.model : account.draftModel || account.model;
+      if (model !== (account.draftModel || account.model)) console.log(`  Falling back to ${model} for this attempt`);
+      const drafts = (await draftCandidates(pillar, photoMode, history, feedback, model)).map(tidy);
       const valid = drafts.filter((d) => {
         const problem = validate(d, photoMode);
         if (problem) console.log(`  Dropped "${d.quote}": ${problem}`);
@@ -655,7 +744,7 @@ async function main() {
         continue;
       }
       valid.forEach((d, i) => console.log(`  Candidate ${i}: ${d.kicker ? "[" + d.kicker + "] " : ""}${d.quote}`));
-      const judged = await judgeCandidates(valid, pillar);
+      const judged = await judgeCandidates(valid, pillar, model);
       if (!judged) {
         feedback = "None of the candidates was clear, specific and relatable enough. Use concrete everyday moments and make sure each line makes sense on one read.";
         console.log("  Editor rejected all candidates.");
